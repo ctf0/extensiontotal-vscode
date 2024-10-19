@@ -1,6 +1,6 @@
-import _ from "lodash";
+import orderBy from "lodash.orderby";
 import vscode from "vscode";
-import { ScanResult } from "./ScanResult";
+import { ScanResult } from "../ScanResult";
 
 export class ExtensionResultProvider {
   _onDidChangeTreeData = new vscode.EventEmitter();
@@ -62,7 +62,7 @@ export class ExtensionResultProvider {
     }
 
     return Promise.resolve(
-      _.orderBy(Object.values(this.results), "risk", "desc")
+      orderBy(Object.values(this.results), "risk", "desc")
     );
   }
 }
