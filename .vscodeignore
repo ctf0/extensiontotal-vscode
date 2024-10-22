@@ -1,5 +1,6 @@
 .github/**
 .vscode/**
+.history/**
 bin/**
 scripts/**
 tests/**

@@ -1,5 +1,5 @@
 import vscode from "vscode";
-import { getNonce } from "./utils";
+import { getNonce } from "../utils";
 
 export class WelcomeViewProvider {
   viewType = "extensiontotal-welcome";
@@ -53,7 +53,7 @@ export class WelcomeViewProvider {
       vscode.Uri.joinPath(this._extensionUri, "media", "main.css")
     );
     const logoUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "icon-white.svg")
+      vscode.Uri.joinPath(this._extensionUri, "images/icon-white.svg")
     );
 
     // Use a nonce to only allow a specific script to be run.

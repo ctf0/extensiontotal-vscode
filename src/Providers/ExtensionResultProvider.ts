@@ -1,6 +1,6 @@
-import _ from "lodash";
+import orderBy from "lodash.orderby";
 import vscode from "vscode";
-import { ScanResult } from "./ScanResult";
+import { ScanResult } from "../ScanResult";
 
 export class ExtensionResultProvider {
   _onDidChangeTreeData = new vscode.EventEmitter();
@@ -17,12 +17,16 @@ export class ExtensionResultProvider {
     for (let result of savedResults) {
       this.results[result.extensionName] = new ScanResult(
         result.extensionId,
-        result.extensionName,
+        this.truncateName(result.extensionName),
         result.riskLabel,
         result.risk,
         vscode.TreeItemCollapsibleState.None
       );
     }
+  }
+
+  private truncateName(name: string): any {
+    return name.length > 30 ? name.slice(0, 30) + '...' : name;
   }
 
   refresh(resetResults = false) {
@@ -40,7 +44,7 @@ export class ExtensionResultProvider {
   addResult(extensionId, extensionName, riskLabel, risk) {
     this.results[extensionName] = new ScanResult(
       extensionId,
-      extensionName,
+      this.truncateName(extensionName),
       riskLabel,
       risk,
       vscode.TreeItemCollapsibleState.None
@@ -62,7 +66,7 @@ export class ExtensionResultProvider {
     }
 
     return Promise.resolve(
-      _.orderBy(Object.values(this.results), "risk", "desc")
+      orderBy(Object.values(this.results), "risk", "desc")
     );
   }
 }
