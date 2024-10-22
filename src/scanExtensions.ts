@@ -1,49 +1,48 @@
 import vscode from "vscode";
 import os from "os";
 
-import { ExtensionResultProvider } from "./ExtensionResultProvider";
 import { sleep, sendHttpsRequest } from "./utils";
+import { ExtensionResultProvider } from "./Providers/ExtensionResultProvider";
 
 export async function scanExtensions(
   context: vscode.ExtensionContext,
   apiKey: string,
   config: {
-    scanOnlyNewVersion: boolean;
-    scanInterval: number;
     provider: ExtensionResultProvider;
     isOrgMode: boolean;
   },
-  isManualScan = false
+  forceScanAll: boolean
 ) {
-  const { scanOnlyNewVersion, scanInterval, provider, isOrgMode } = config;
+  const { provider, isOrgMode } = config;
 
-  if (!apiKey) {
-    return;
-  }
-
-  let lastScan = context.globalState.get(`last-extensiontotal-scan`, null);
-  if (
-    scanInterval !== 0 &&
-    lastScan &&
-    lastScan < new Date().getTime() - scanInterval * 60 * 60 * 1000 &&
-    !isManualScan
-  ) {
-    return;
-  }
-
-  context.globalState.update(`last-extensiontotal-scan`, new Date().getTime());
-
-  const extensions = vscode.extensions.all.filter(
-    (extension) => !extension.id.startsWith("vscode.")
+  let extensions: vscode.Extension<any>[] = vscode.extensions.all.filter(
+    (extension: vscode.Extension<any>) => !extension.id.startsWith("vscode.")
   );
+
+  if (!forceScanAll) {
+    extensions = extensions.filter((extension: vscode.Extension<any>) => {
+      const lastVersion = context.globalState.get(
+        `scanned-${extension.id}`,
+        null
+      );
+
+      return lastVersion !== extension.packageJSON.version
+    });
+  }
 
   let foundHigh = false;
   let limitReached = false;
   let invalidApiKey = false;
 
+  const extLength = extensions.length;
+
+  if (extLength === 0) {
+    return;
+  }
+
   const progressOptions: vscode.ProgressOptions = {
     location: vscode.ProgressLocation.Notification,
-    title: `📡 ExtensionTotal: Running scan on ${extensions.length} extensions...`,
+    title: `📡 ExtensionTotal: Running scan on ${extLength} extensions...`,
     cancellable: true,
   };
 
@@ -53,23 +52,14 @@ export async function scanExtensions(
     token.onCancellationRequested(() => {
       forceStop = true;
     });
-    const incrementBy = 100 / extensions.length;
+    const incrementBy = 100 / extLength;
 
     for (
       let index = 0;
-      index < extensions.length && !forceStop && !invalidApiKey;
+      index < extLength && !forceStop && !invalidApiKey;
       index++
     ) {
       const extension = extensions[index];
-      if (scanOnlyNewVersion && !isManualScan) {
-        let lastVersion = context.globalState.get(
-          `scanned-${extension.id}`,
-          null
-        );
-        if (lastVersion === extension.packageJSON.version) {
-          continue;
-        }
-      }
 
       progress.report({ increment: incrementBy });
 
@@ -104,7 +94,7 @@ export async function scanExtensions(
         break;
       }
 
-      await sleep(1500);
+      await sleep(1000);
     }
   });
 
@@ -121,6 +111,10 @@ export async function scanExtensions(
       `📡 ExtensionTotal: Finished scan with no high risk findings. Review results in the ExtensionTotal pane.`
     );
   }
+
+  if (!invalidApiKey) {
+    vscode.commands.executeCommand("extensiontotal-results.focus")
+  }
 }
 
 function handleExtensionScanResult(
@@ -130,8 +124,22 @@ function handleExtensionScanResult(
   provider: ExtensionResultProvider
 ): { limitReached?: boolean; foundHigh?: boolean; invalidApiKey?: boolean } {
   const { statusCode, data, error } = scanResult;
+
   if (error) {
     vscode.window.showErrorMessage(`📡 ExtensionTotal: ${error.toString()}`);
+    return {};
+  } else if (statusCode == 400) {
+    const name = extension.packageJSON.displayName || extension.packageJSON.name
+
+    vscode.window.showErrorMessage(
+      `📡 ExtensionTotal: (${name}) cant be scanned atm, try again later`,
+      'show extension info'
+    ).then((answer) => {
+      if (answer) {
+        vscode.commands.executeCommand('workbench.extensions.search', `@installed ${name}`);
+      }
+    });
+
     return {};
   } else if (statusCode === 429) {
     vscode.window.showInformationMessage(

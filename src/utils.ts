@@ -1,4 +1,5 @@
 import https from "https";
+import vscode from "vscode";
 
 export function getNonce() {
   let text = "";
@@ -53,4 +54,8 @@ export async function sendHttpsRequest(
 
     req.end();
   });
+}
+
+export function getConfig() {
+  return vscode.workspace.getConfiguration("extensiontotal");
 }
