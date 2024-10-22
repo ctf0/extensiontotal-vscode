@@ -1,5 +1,5 @@
 import vscode from "vscode";
-import { getNonce } from "./utils";
+import { getNonce } from "../utils";
 
 export class WelcomeViewProvider {
   viewType = "extensiontotal-welcome";

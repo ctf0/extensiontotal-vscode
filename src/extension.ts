@@ -1,12 +1,15 @@
 import vscode from "vscode";
 
+import debounce from 'lodash.debounce';
 import { APIKeyManager } from "./ApiKeyManager";
-import { ExtensionResultProvider } from "./ExtensionResultProvider";
-import { scanExtensions } from "./scanExtensions";
 import { OrgIdManager } from "./OrgIdManager";
-import { WelcomeViewProvider } from "./WelcomeViewProvider";
+import { ExtensionResultProvider } from "./Providers/ExtensionResultProvider";
+import { WelcomeViewProvider } from "./Providers/WelcomeViewProvider";
+import { scanExtensions } from "./scanExtensions";
 
 export async function activate(context: vscode.ExtensionContext) {
+  vscode.commands.executeCommand('setContext', 'ext.showWelcomeView', false);
+
   const orgIdManager = new OrgIdManager(context);
   await orgIdManager.initialize();
 
@@ -16,48 +19,49 @@ export async function activate(context: vscode.ExtensionContext) {
   const provider = new ExtensionResultProvider(context);
   const welcomeProvider = new WelcomeViewProvider(context, apiKeyManager);
 
-  await transitionApiKey(apiKeyManager);
-
   if (!apiKeyManager.getApiKey()) {
-    vscode.window.showInformationMessage(
-      `📡 ExtensionTotal: No API key found, Please set your API key in the ExtensionTotal panel.`
-    );
+    noApiKeyFound();
   }
 
-  const scanHandler = async (isManualScan = false) => {
-    const config = vscode.workspace.getConfiguration("extensiontotal");
-    const scanOnlyNewVersion: boolean = config.get("scanOnlyNewVersions");
-    const scanInterval: number = config.get("scanEveryXHours");
-    const currentApiKey = apiKeyManager.getApiKey();
-    const isOrgMode = orgIdManager.isOrgMode()
+  const scanHandler = async (forceScanAll: boolean = false) => {
+    const currentApiKey: string = apiKeyManager.getApiKey();
+    const isOrgMode: boolean = orgIdManager.isOrgMode()
+
+    if (!currentApiKey) {
+      return noApiKeyFound();
+    }
 
     await scanExtensions(
       context,
       currentApiKey,
       {
-        scanOnlyNewVersion,
-        scanInterval,
         provider,
         isOrgMode
       },
-      isManualScan
+      forceScanAll
     );
   };
 
-  reloadAccordingToConfig(context, { provider, welcomeProvider });
+  reloadAccordingToConfig(context, { provider, welcomeProvider }, apiKeyManager);
 
-  vscode.workspace.onDidChangeConfiguration(() => {
-    reloadAccordingToConfig(context, { provider, welcomeProvider });
-  });
+  vscode.workspace.onDidChangeConfiguration(() => reloadAccordingToConfig(context, { provider, welcomeProvider }, apiKeyManager));
 
-  vscode.extensions.onDidChange(async (event) => {
-    await scanHandler(false);
-  });
+  vscode.extensions.onDidChange(
+    debounce(async (e) => await scanHandler(), 50 * 1000),
+  );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("ExtensionTotal.scan", () =>
-      scanHandler(true)
-    )
+    vscode.commands.registerCommand("ExtensionTotal.scan", async () => {
+      const answer = await vscode.window.showInformationMessage(
+        "Do you want to scan all installed extensions?",
+        { modal: true },
+        "Yes", "Non scanned only (default)"
+      )
+
+      if (answer) {
+        await scanHandler(answer === 'Yes');
+      }
+    })
   );
 
   context.subscriptions.push(
@@ -76,21 +80,31 @@ export async function activate(context: vscode.ExtensionContext) {
   const scanOnStartup = config.get("scanOnStartup");
 
   if (scanOnStartup) {
-    scanHandler(false);
+    scanHandler();
   }
 }
 
-export function deactivate() {}
+function noApiKeyFound(): void {
+  vscode.window.showInformationMessage(
+    `📡 ExtensionTotal: No API key found, Please set your API key in the ExtensionTotal panel.`
+  );
+}
 
-function reloadAccordingToConfig(context: vscode.ExtensionContext, providers) {
+export function deactivate() { }
+
+function reloadAccordingToConfig(context: vscode.ExtensionContext, providers, apiKeyManager: APIKeyManager) {
   const { provider, welcomeProvider } = providers;
 
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      "extensiontotal-welcome",
-      welcomeProvider
-    )
-  );
+  if (!apiKeyManager.getApiKey()) {
+    vscode.commands.executeCommand('setContext', 'ext.showWelcomeView', true);
+
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        "extensiontotal-welcome",
+        welcomeProvider
+      )
+    );
+  }
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("extensiontotal-results", provider)
@@ -109,18 +123,4 @@ function reloadAccordingToConfig(context: vscode.ExtensionContext, providers) {
       )
     );
   });
-}
-
-async function transitionApiKey(apiKeyManager: APIKeyManager) {
-  if (apiKeyManager.getApiKey()) {
-    return;
-  }
-  const config = vscode.workspace.getConfiguration("extensiontotal");
-  const target = vscode.ConfigurationTarget.Global;
-  const apiKey: string = config.get("apiKeySetting");
-  console.log(`found old apiKey ${apiKey}`);
-  if (apiKey) {
-    await apiKeyManager.quietSetApiKey(apiKey);
-  }
-  await config.update("apiKeySetting", "", target);
 }
