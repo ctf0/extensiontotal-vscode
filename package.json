@@ -1,13 +1,10 @@
 {
     "name": "extensiontotal-vscode",
-    "version": "1.3.3",
-    "displayName": "ExtensionTotal",
+    "version": "1.3.6",
+    "displayName": "ExtensionTotal Security",
     "homepage": "https://extensiontotal.com/",
     "description": "Analyze suspicious Visual Studio Code extensions, navigate the extension jungle, and detect harmful code, risky access, and other security vulnerabilities.",
     "publisher": "extensiontotal",
-    "sponsor": {
-        "url": "https://extensiontotal.lemonsqueezy.com/"
-    },
     "license": "MIT",
     "scripts": {
         "package": "vsce package -o ./bin/extensiontotal.vsix",
@@ -29,13 +26,13 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/sand-security/extensiontotal-vscode.git"
+        "url": "https://github.com/extensiontotal/extensiontotal-vscode.git"
     },
     "bugs": {
-        "url": "https://github.com/sand-security/extensiontotal-vscode/issues"
+        "url": "https://github.com/extensiontotal/extensiontotal-vscode/issues"
     },
     "engines": {
-        "vscode": "^1.13.0"
+        "vscode": "^1.93.0"
     },
     "categories": [
         "Other"
@@ -43,8 +40,8 @@
     "keywords": [
         "extensiontotal",
         "security",
-        "sand",
-        "extension"
+        "extension",
+        "koi"
     ],
     "icon": "icon.png",
     "galleryBanner": {
